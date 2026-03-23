@@ -7,6 +7,7 @@ import uuid
 from base64 import urlsafe_b64decode
 from urllib.parse import urljoin
 
+
 class PlutoAuth:
     BOOT_URL = "https://boot.pluto.tv/v4/start"
     STITCHER_BASE = "https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv"
@@ -69,6 +70,10 @@ class PlutoAuth:
         token = self.boot(ip_address).get("sessionToken", "")
         return f"{self.STITCHER_BASE}/v2/stitch/hls/channel/{channel_id}/master.m3u8?jwt={token}&masterJWTPassthrough=true"
 
+
+pluto_auth = PlutoAuth() 
+
+
 def fetch_channels(region="US", ip_address=""):
     # Usa l'IP se fornito (per regioni diverse)
     pluto_auth = PlutoAuth()
@@ -97,6 +102,7 @@ def fetch_channels(region="US", ip_address=""):
     resp.raise_for_status()
     return resp.json()
 
+
 def generate_m3u(channels, output_file):
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("#EXTM3U\n")
@@ -114,6 +120,7 @@ def generate_m3u(channels, output_file):
             # Scrive la riga EXTINF con i meta dati
             f.write(f'#EXTINF:-1 tvg-id="{channel_id}" tvg-name="{name}" tvg-logo="{logo}",{name}\n')
             f.write(f"{stream_url}\n")
+
 
 if __name__ == "__main__":
     # Puoi scegliere una regione; qui usa US senza IP forzato
