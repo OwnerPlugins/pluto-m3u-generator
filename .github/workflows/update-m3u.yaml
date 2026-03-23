@@ -26,8 +26,7 @@ jobs:
 
       - name: Clona repository pubblico
         run: |
-          git clone https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/tuo-username/pluto-tv-m3u.git public-repo
-          # Copia il file M3U generato nella directory del repo pubblico
+          git clone https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/Belfagor2005/pluto-tv-m3u.git public-repo
           cp pluto.m3u public-repo/
 
       - name: Push su repository pubblico
