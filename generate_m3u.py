@@ -19,13 +19,11 @@ PLUTO_SEASON_URL = f"{PLUTO_API_URL}/v3/vod/series/%s/seasons"
 REGIONS_XML_URL = "https://raw.githubusercontent.com/oe-alliance/PlutoTV/refs/heads/main/src/PlutoTV/plutotv.xml"
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
-# Se vuoi generare solo alcune regioni, modifica questa lista (usa i codici paese)
-# Se vuoi generare per tutte le regioni trovate nel XML, imposta GENERATE_ALL_REGIONS = True
 GENERATE_ALL_REGIONS = True
-REGIONS_TO_GENERATE = ["US", "IT", "GB", "DE", "FR", "ES"]  # usato solo se GENERATE_ALL_REGIONS = False
 GENERATE_VOD = True          # genera anche file VOD (film)
 VOD_MAX_ITEMS = 500          # limite per evitare file troppo grandi (0 = nessun limite)
-LIVE_GROUP_BY_CATEGORY = True # raggruppa i canali live per categoria nel file M3U
+LIVE_GROUP_BY_CATEGORY = True
+
 
 # ------------------------------
 # Classe PlutoAuth (dal plugin originale)
@@ -98,14 +96,28 @@ class PlutoAuth:
             "user-agent": USER_AGENT,
         }
 
+    def build_stream_url(self, channel_id, ip_address=""):
+        token = self.boot(ip_address).get("sessionToken", "")
+        return f"{self.STITCHER_BASE}/v2/stitch/hls/channel/{channel_id}/master.m3u8?jwt={token}&masterJWTPassthrough=true"
+
+    def build_vod_stream_url(self, vod_url, ip_address=""):
+        token = self.boot(ip_address).get("sessionToken", "")
+        # Pulisce l'URL originale
+        path = vod_url.split("?")[0]
+        path = re.sub(r"^https?://[^/]+", "", path)
+        if path.startswith("/stitch/"):
+            path = "/v2" + path
+        return f"{self.STITCHER_BASE}{path}?jwt={token}&masterJWTPassthrough=true"
+
+
 # Istanza globale
+import re
 pluto_auth = PlutoAuth()
 
 # ------------------------------
-# Caricamento regioni dal file XML
+# Caricamento regioni
 # ------------------------------
 def fetch_regions():
-    """Scarica il file XML delle regioni e restituisce un dict: {country_code: (name, ip, tids)}"""
     try:
         resp = requests.get(REGIONS_XML_URL, timeout=10)
         resp.raise_for_status()
@@ -113,32 +125,23 @@ def fetch_regions():
         regions = {}
         for region in root.findall("region"):
             country = region.get("country")
-            name = region.get("name") or country  # in realtà il nome è nel tag <name>? Nel XML originale c'è attributo "country"
+            name = region.get("name")
             ip = region.get("ip")
             tids = region.get("tids")
             if country and ip and tids:
                 regions[country] = (name, ip, tids)
-        print(f"[Regions] Caricate {len(regions)} regioni dal file XML.")
+        print(f"[Regions] Caricate {len(regions)} regioni.")
         return regions
     except Exception as e:
-        print(f"[Regions] Errore nel caricamento del file XML: {e}")
-        # Fallback con alcune regioni note
-        return {
-            "US": ("United States", "8.8.8.8", "0"),
-            "IT": ("Italy", "80.241.215.160", "0"),
-            "GB": ("United Kingdom", "80.241.215.160", "0"),
-            "DE": ("Germany", "80.241.215.160", "0"),
-            "FR": ("France", "80.241.215.160", "0"),
-            "ES": ("Spain", "80.241.215.160", "0"),
-        }
+        print(f"[Regions] Errore: {e}")
+        return {}
+
 
 # ------------------------------
-# Funzioni per recuperare i dati
+# Recupero dati
 # ------------------------------
 def fetch_live_channels(ip_address=""):
-    """Recupera la lista dei canali live per la regione specificata"""
     headers = pluto_auth._api_headers(ip_address)
-    # Usa l'endpoint v2/channels
     url = f"{PLUTO_API_URL}/v2/channels"
     params = {
         "deviceType": "web",
@@ -158,8 +161,8 @@ def fetch_live_channels(ip_address=""):
         print(f"[Live] Errore: {e}")
         return []
 
+
 def fetch_vod_categories(ip_address=""):
-    """Recupera le categorie VOD con i relativi film/serie"""
     headers = pluto_auth._api_headers(ip_address)
     params = {"includeItems": "true", "deviceType": "web"}
     try:
@@ -172,25 +175,20 @@ def fetch_vod_categories(ip_address=""):
         print(f"[VOD] Errore: {e}")
         return {}
 
+
 # ------------------------------
-# Generazione file M3U
+# Generazione M3U
 # ------------------------------
-def generate_live_m3u(channels, output_file, group_by_category=True):
-    """
-    Genera un file M3U con i canali live.
-    Se group_by_category è True, usa #EXTGRP per raggruppare per categoria.
-    """
+def generate_live_m3u(channels, output_file, ip_address="", group_by_category=True):
     if not channels:
         print(f"[Live] Nessun canale, salto {output_file}")
         return
 
-    # Ordina i canali: prima per categoria, poi per nome
     if group_by_category:
         by_category = defaultdict(list)
         for ch in channels:
             cat = ch.get("category", "Other")
             by_category[cat].append(ch)
-        # Ordina le categorie e i canali all'interno
         sorted_cats = sorted(by_category.items())
     else:
         sorted_cats = [("All", channels)]
@@ -200,31 +198,20 @@ def generate_live_m3u(channels, output_file, group_by_category=True):
         for cat, ch_list in sorted_cats:
             if group_by_category:
                 f.write(f'#EXTGRP:{cat}\n')
-            # Ordina i canali per nome
             for ch in sorted(ch_list, key=lambda x: x.get("name", "").lower()):
                 name = ch.get("name", "Unknown")
                 channel_id = ch.get("_id")
                 if not channel_id:
                     continue
-                # Estrai l'URL dallo stitched
-                stitched = ch.get("stitched", {})
-                urls = stitched.get("urls", [])
-                if not urls:
-                    continue
-                stream_url = urls[0].get("url")
-                if not stream_url:
-                    continue
+                # Ricostruisci URL con token fresco
+                stream_url = pluto_auth.build_stream_url(channel_id, ip_address)
                 logo = ch.get("logo", {}).get("path", "") or ch.get("image", "")
                 f.write(f'#EXTINF:-1 tvg-id="{channel_id}" tvg-name="{name}" tvg-logo="{logo}",{name}\n')
                 f.write(f"{stream_url}\n")
-    print(f"[Live] File M3U generato: {output_file}")
+    print(f"[Live] File generato: {output_file}")
 
-def generate_vod_m3u(vod_data, output_file, max_items=0):
-    """
-    Genera un file M3U con i contenuti VOD (solo film, per ora).
-    I film vengono raggruppati per categoria.
-    Se max_items > 0, limita il numero totale di voci.
-    """
+
+def generate_vod_m3u(vod_data, output_file, ip_address="", max_items=0):
     categories = vod_data.get("categories", [])
     if not categories:
         print(f"[VOD] Nessuna categoria, salto {output_file}")
@@ -236,52 +223,38 @@ def generate_vod_m3u(vod_data, output_file, max_items=0):
         for cat in categories:
             cat_name = cat.get("name", "Unknown")
             items = cat.get("items", [])
-            # Filtra solo i film (type == "movie")
             movies = [item for item in items if item.get("type") == "movie"]
             if not movies:
                 continue
             f.write(f'#EXTGRP:{cat_name}\n')
             for movie in movies:
                 name = movie.get("name", "Unknown")
-                # Prendi l'URL dello stream
-                stitched = movie.get("stitched", {})
-                urls = stitched.get("urls", [])
-                if not urls:
+                # Ottieni l'URL originale dall'API (senza token)
+                orig_url = movie.get("stitched", {}).get("urls", [{}])[0].get("url")
+                if not orig_url:
                     continue
-                stream_url = urls[0].get("url")
-                if not stream_url:
-                    continue
+                # Ricostruisci URL con token fresco
+                stream_url = pluto_auth.build_vod_stream_url(orig_url, ip_address)
                 f.write(f'#EXTINF:-1 tvg-name="{name}",{name}\n')
                 f.write(f"{stream_url}\n")
                 total_written += 1
                 if max_items > 0 and total_written >= max_items:
-                    print(f"[VOD] Limite di {max_items} voci raggiunto, interrompo.")
+                    print(f"[VOD] Limite di {max_items} voci raggiunto.")
                     return
-    print(f"[VOD] File M3U generato: {output_file} ({total_written} voci)")
+    print(f"[VOD] File generato: {output_file} ({total_written} voci)")
+
 
 # ------------------------------
-# Funzione principale
+# Main
 # ------------------------------
 def main():
-    # 1. Ottieni le regioni
     regions = fetch_regions()
     if not regions:
         print("Nessuna regione disponibile, esco.")
         sys.exit(1)
 
-    # Seleziona le regioni da processare
-    if GENERATE_ALL_REGIONS:
-        region_codes = list(regions.keys())
-    else:
-        region_codes = [code for code in REGIONS_TO_GENERATE if code in regions]
+    region_codes = list(regions.keys()) if GENERATE_ALL_REGIONS else [c for c in REGIONS_TO_GENERATE if c in regions]
 
-    if not region_codes:
-        print("Nessuna regione selezionata, esco.")
-        sys.exit(1)
-
-    print(f"Processerò le seguenti regioni: {region_codes}")
-
-    # 2. Per ogni regione, genera i file
     for code in region_codes:
         name, ip, tids = regions[code]
         print(f"\n--- Regione: {code} ({name}) ---")
@@ -290,16 +263,17 @@ def main():
         channels = fetch_live_channels(ip)
         if channels:
             live_file = f"pluto-live-{code}.m3u"
-            generate_live_m3u(channels, live_file, group_by_category=LIVE_GROUP_BY_CATEGORY)
+            generate_live_m3u(channels, live_file, ip_address=ip, group_by_category=LIVE_GROUP_BY_CATEGORY)
 
-        # VOD (opzionale)
+        # VOD
         if GENERATE_VOD:
             vod_data = fetch_vod_categories(ip)
             if vod_data:
                 vod_file = f"pluto-vod-{code}.m3u"
-                generate_vod_m3u(vod_data, vod_file, max_items=VOD_MAX_ITEMS)
+                generate_vod_m3u(vod_data, vod_file, ip_address=ip, max_items=VOD_MAX_ITEMS)
 
     print("\nElaborazione completata.")
+
 
 if __name__ == "__main__":
     main()
