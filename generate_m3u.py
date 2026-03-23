@@ -98,9 +98,15 @@ def fetch_channels(region="US", ip_address=""):
         "appName": "web",
         "appVersion": "8.0.0",
     }
+    
     resp = requests.get(url, headers=headers, params=params, timeout=30)
     resp.raise_for_status()
-    return resp.json()
+    # return resp.json()
+    channels = resp.json()
+    # Stampa il primo canale per debug
+    if channels:
+        print(json.dumps(channels[0], indent=2))
+    return channels
 
 
 def generate_m3u(channels, output_file):
