@@ -1,0 +1,40 @@
+name: Aggiorna lista Pluto TV
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'   # ogni 6 ore
+  workflow_dispatch:          # permette esecuzione manuale
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout codice
+        uses: actions/checkout@v4
+
+      - name: Configura Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Installa dipendenze
+        run: pip install requests
+
+      - name: Esegui generazione M3U
+        run: python generate_m3u.py
+
+      - name: Clona repository pubblico
+        run: |
+          git clone https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/tuo-username/pluto-tv-m3u.git public-repo
+          # Copia il file M3U generato nella directory del repo pubblico
+          cp pluto.m3u public-repo/
+
+      - name: Push su repository pubblico
+        working-directory: public-repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pluto.m3u
+          git diff --quiet && git diff --staged --quiet || git commit -m "Aggiornamento automatico $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          git push
