@@ -101,12 +101,12 @@ def fetch_channels(region="US", ip_address=""):
     
     resp = requests.get(url, headers=headers, params=params, timeout=30)
     resp.raise_for_status()
-    # return resp.json()
-    channels = resp.json()
-    # Stampa il primo canale per debug
-    if channels:
-        print(json.dumps(channels[0], indent=2))
-    return channels
+    return resp.json()
+    # channels = resp.json()
+    # # Stampa il primo canale per debug
+    # if channels:
+        # print(json.dumps(channels[0], indent=2))
+    # return channels
 
 
 def generate_m3u(channels, output_file):
@@ -114,9 +114,11 @@ def generate_m3u(channels, output_file):
         f.write("#EXTM3U\n")
         for ch in channels:
             name = ch.get("name", "Unknown")
-            channel_id = ch.get("id")
+            channel_id = ch.get("_id") or ch.get("id")   # <--- usa _id
+            if not channel_id:
+                print(f"⚠️ Skipping {name}: no ID")
+                continue
             logo = ch.get("logo", {}).get("path", "") or ch.get("image", "")
-            # Usa l'istanza globale pluto_auth (nome minuscolo)
             stream_url = pluto_auth.build_stream_url(channel_id, ip_address="")
             f.write(f'#EXTINF:-1 tvg-id="{channel_id}" tvg-name="{name}" tvg-logo="{logo}",{name}\n')
             f.write(f"{stream_url}\n")
