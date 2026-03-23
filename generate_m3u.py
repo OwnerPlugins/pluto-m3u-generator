@@ -196,17 +196,17 @@ def generate_live_m3u(channels, output_file, ip_address="", group_by_category=Tr
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("#EXTM3U\n")
         for cat, ch_list in sorted_cats:
-            if group_by_category:
-                f.write(f'#EXTGRP:{cat}\n')
+            # Opzionale: aggiungi una riga di commento per separare le categorie (visibile in VLC)
+            f.write(f"#=== {cat} ===\n")
             for ch in sorted(ch_list, key=lambda x: x.get("name", "").lower()):
                 name = ch.get("name", "Unknown")
                 channel_id = ch.get("_id")
                 if not channel_id:
                     continue
-                # Ricostruisci URL con token fresco
                 stream_url = pluto_auth.build_stream_url(channel_id, ip_address)
                 logo = ch.get("logo", {}).get("path", "") or ch.get("image", "")
-                f.write(f'#EXTINF:-1 tvg-id="{channel_id}" tvg-name="{name}" tvg-logo="{logo}",{name}\n')
+                # Usa group-title per far riconoscere la categoria a VLC
+                f.write(f'#EXTINF:-1 group-title="{cat}" tvg-id="{channel_id}" tvg-name="{name}" tvg-logo="{logo}",{name}\n')
                 f.write(f"{stream_url}\n")
     print(f"[Live] File generato: {output_file}")
 
