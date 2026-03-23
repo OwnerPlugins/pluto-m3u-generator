@@ -71,13 +71,14 @@ class PlutoAuth:
         return f"{self.STITCHER_BASE}/v2/stitch/hls/channel/{channel_id}/master.m3u8?jwt={token}&masterJWTPassthrough=true"
 
 
-pluto_auth = PlutoAuth() 
+# ---------------------------
+# CREA L'ISTANZA GLOBALE
+pluto_auth = PlutoAuth()
+# ---------------------------
 
 
 def fetch_channels(region="US", ip_address=""):
-    # Usa l'IP se fornito (per regioni diverse)
-    pluto_auth = PlutoAuth()
-    # Ottieni il token e costruisci headers
+    # Usa l'istanza globale pluto_auth
     headers = {
         "authorization": f"Bearer {pluto_auth.boot(ip_address).get('sessionToken', '')}",
         "accept": "application/json",
@@ -85,7 +86,6 @@ def fetch_channels(region="US", ip_address=""):
         "origin": "https://pluto.tv",
         "referer": "https://pluto.tv/",
     }
-    # Aggiungi X-Forwarded-For se necessario per forzare una regione
     if ip_address:
         headers["X-Forwarded-For"] = ip_address
 
@@ -107,23 +107,16 @@ def generate_m3u(channels, output_file):
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("#EXTM3U\n")
         for ch in channels:
-            # Salta canali promozionali se desideri (opzionale)
-            # if ch.get("isPromoted"):
-            #     continue
             name = ch.get("name", "Unknown")
             channel_id = ch.get("id")
-            # Prendi il logo (se presente)
             logo = ch.get("logo", {}).get("path", "") or ch.get("image", "")
-            # Costruisci l'URL dello stream
-            stream_url = plutoAuth.build_stream_url(channel_id, ip_address="")  # Puoi passare IP regionale
-
-            # Scrive la riga EXTINF con i meta dati
+            # Usa l'istanza globale pluto_auth (nome minuscolo)
+            stream_url = pluto_auth.build_stream_url(channel_id, ip_address="")
             f.write(f'#EXTINF:-1 tvg-id="{channel_id}" tvg-name="{name}" tvg-logo="{logo}",{name}\n')
             f.write(f"{stream_url}\n")
 
 
 if __name__ == "__main__":
-    # Puoi scegliere una regione; qui usa US senza IP forzato
     channels = fetch_channels()
     print(f"Trovati {len(channels)} canali.")
     generate_m3u(channels, "pluto.m3u")
