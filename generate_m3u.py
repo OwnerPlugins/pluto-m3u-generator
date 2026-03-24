@@ -139,11 +139,10 @@ def fetch_regions():
 # Recupero dati con regione
 # ------------------------------
 def fetch_live_channels(ip_address="", region_code=""):
-    headers = pluto_auth._api_headers(ip_address)
-    headers.pop("X-Forwarded-For", None)          # fondamentale
-    headers["Accept-Language"] = "it-IT,it;q=0.9,en;q=0.8"
-    url = f"{PLUTO_API_URL}/v2/channels"
+    url = f"{PLUTO_API_URL}/v2/guide"
     params = {
+        "region": region_code,
+        "language": "it" if region_code == "IT" else "en",  # italiano per IT, inglese per le altre
         "deviceType": "web",
         "deviceMake": "chrome",
         "deviceModel": "web",
@@ -151,17 +150,21 @@ def fetch_live_channels(ip_address="", region_code=""):
         "appName": "web",
         "appVersion": "8.0.0",
     }
-    if region_code:
-        params["country"] = region_code
-        if region_code == "IT":
-            params["language"] = "it"
+    headers = {
+        "accept": "application/json",
+        "origin": "https://pluto.tv",
+        "referer": "https://pluto.tv/",
+        "user-agent": USER_AGENT,
+    }
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
-        channels = resp.json()
+        data = resp.json()
+        # L'endpoint guide restituisce un oggetto con "channels" e "schedules"
+        channels = data.get("channels", [])
         print(f"[Live] Trovati {len(channels)} canali per {region_code}.")
         if channels:
-            print(f"[Live] Esempio: {channels[0].get('name')} - {channels[0].get('summary')[:50]}...")
+            print(f"[Live] Esempio: {channels[0].get('name')} - {channels[0].get('summary', '')[:50]}...")
         return channels
     except Exception as e:
         print(f"[Live] Errore: {e}")
@@ -169,17 +172,18 @@ def fetch_live_channels(ip_address="", region_code=""):
 
 
 def fetch_vod_categories(ip_address="", region_code=""):
-    headers = pluto_auth._api_headers(ip_address)
-    headers.pop("X-Forwarded-For", None)
-    headers["Accept-Language"] = "it-IT,it;q=0.9,en;q=0.8"
+    headers = {
+        "accept": "application/json",
+        "origin": "https://pluto.tv",
+        "referer": "https://pluto.tv/",
+        "user-agent": USER_AGENT,
+    }
     params = {
         "includeItems": "true",
         "deviceType": "web",
+        "region": region_code,
+        "language": "it" if region_code == "IT" else "en",
     }
-    if region_code:
-        params["country"] = region_code
-        if region_code == "IT":
-            params["language"] = "it"
     try:
         resp = requests.get(PLUTO_VOD_URL, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
