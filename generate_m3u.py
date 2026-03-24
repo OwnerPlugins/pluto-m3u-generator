@@ -130,7 +130,6 @@ def fetch_regions():
 # Metadati (senza token)
 # ------------------------------
 def fetch_live_channels_metadata(region_code=""):
-    """Chiamata senza token per ottenere nomi, categorie, loghi localizzati."""
     url = PLUTO_LIVE_URL
     headers = {
         "Accept": "application/json",
@@ -146,18 +145,30 @@ def fetch_live_channels_metadata(region_code=""):
         "appVersion": "8.0.0",
     }
     if region_code:
-        params["country"] = region_code
+        params["region"] = region_code          # <-- CAMBIATO: region, non country
         if region_code == "IT":
             params["language"] = "it"
+
+    # Debug: stampa l'URL
+    full_url = requests.Request('GET', url, headers=headers, params=params).prepare().url
+    print(f"[DEBUG] Metadata URL: {full_url}")
+
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
+        print(f"[DEBUG] Status: {resp.status_code}")
         if resp.status_code == 429:
-            print(f"[Live] Rate limit per {region_code}, aspetto 2 secondi...")
+            print("[DEBUG] Rate limit, aspetto 2 secondi...")
             time.sleep(2)
             resp = requests.get(url, headers=headers, params=params, timeout=30)
+            print(f"[DEBUG] Status dopo attesa: {resp.status_code}")
         resp.raise_for_status()
+        text = resp.text
+        # Mostra i primi 500 caratteri per debug
+        print(f"[DEBUG] Response preview: {text[:500]}")
         channels = resp.json()
         print(f"[Live] Trovati {len(channels)} canali per {region_code} (metadati).")
+        if channels:
+            print(f"[Live] Esempio: {channels[0].get('name')} - {channels[0].get('summary')[:50]}...")
         return channels
     except Exception as e:
         print(f"[Live] Errore metadati per {region_code}: {e}")
