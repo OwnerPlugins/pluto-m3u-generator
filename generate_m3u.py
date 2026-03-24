@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import os
 import sys
 import json
 import time
@@ -9,7 +8,7 @@ import requests
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from base64 import urlsafe_b64decode
-from urllib.parse import urljoin
+
 
 # ------------------------------
 # Costanti
@@ -20,10 +19,11 @@ PLUTO_VOD_URL = f"{PLUTO_API_URL}/v3/vod/categories"
 REGIONS_XML_URL = "https://raw.githubusercontent.com/oe-alliance/PlutoTV/refs/heads/main/src/PlutoTV/plutotv.xml"
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
+REGIONS_TO_GENERATE = []
 GENERATE_ALL_REGIONS = True
+LIVE_GROUP_BY_CATEGORY = True
 GENERATE_VOD = True
 VOD_MAX_ITEMS = 500
-LIVE_GROUP_BY_CATEGORY = True
 
 
 # ------------------------------
@@ -353,18 +353,6 @@ def main():
     for code in region_codes:
         name, ip, tids = regions[code]
         print(f"\n--- Regione: {code} ({name}) ---")
-
-        # 1. Prova a ottenere i metadati localizzati (senza token)
-        # channels = fetch_live_channels_metadata(region_code=code)
-        # if not channels:
-            # # 2. Fallback: usa il token
-            # channels = fetch_live_channels_token(ip, region_code=code)
-
-        # if code in ("IT", "ES", "FR", "DE"):
-            # channels = fetch_live_channels_token(ip, region_code=code)
-        # else:
-            # channels = fetch_live_channels_metadata(region_code=code)
-
         channels = fetch_live_channels_metadata(ip_address=ip, region_code=code)
         if channels:
             live_file = f"pluto-live-{code}.m3u"
@@ -379,7 +367,6 @@ def main():
                 vod_file = f"pluto-vod-{code}.m3u"
                 generate_vod_m3u(vod_data, vod_file, ip_address=ip, max_items=VOD_MAX_ITEMS)
 
-        # Piccola pausa per evitare rate limit
         time.sleep(1)
 
     print("\nElaborazione completata.")
