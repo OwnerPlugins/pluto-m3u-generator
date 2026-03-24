@@ -140,17 +140,22 @@ def fetch_regions():
 # Recupero dati con regione
 # ------------------------------
 def fetch_live_channels(ip_address="", region_code=""):
-    # 1. Ottieni token con l'IP regionale (il boot imposta X-Forwarded-For)
-    headers = pluto_auth._api_headers(ip_address)
-    # 2. Rimuovi X-Forwarded-For per non sovrascrivere la regione del token
-    headers.pop("X-Forwarded-For", None)
-    # 3. Preferisci la lingua della regione (se disponibile)
-    lang_map = {"IT": "it", "ES": "es", "FR": "fr", "DE": "de", "PT": "pt", "BR": "pt"}
-    lang = lang_map.get(region_code, "en")
-    headers["Accept-Language"] = f"{lang}-{region_code},{lang};q=0.9,en;q=0.8"
+    # Ottieni il token dall'IP regionale (questo setta X-Forwarded-For solo per il boot)
+    token = pluto_auth.boot(ip_address).get("sessionToken", "")
+    if not token:
+        print(f"[Live] Nessun token per {region_code}")
+        return []
 
-    # 4. Endpoint corretto
-    url = PLUTO_LIVE_URL   # https://api.pluto.tv/v2/channels
+    # Costruisci header manualmente, SENZA X-Forwarded-For
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+        "Origin": "https://pluto.tv",
+        "Referer": "https://pluto.tv/",
+        "User-Agent": USER_AGENT,
+        "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
+    }
+    url = f"{PLUTO_API_URL}/v2/channels"
     params = {
         "deviceType": "web",
         "deviceMake": "chrome",
@@ -158,13 +163,11 @@ def fetch_live_channels(ip_address="", region_code=""):
         "deviceVersion": "122.0.0",
         "appName": "web",
         "appVersion": "8.0.0",
+        "country": region_code,           # forza la regione
     }
-    # 5. Parametri per la localizzazione
-    if region_code:
-        params["country"] = region_code
-        if region_code in lang_map:
-            params["language"] = lang
-
+    # Aggiungi lingua solo per le regioni che supportano localizzazione
+    if region_code in ("IT", "ES", "FR", "DE", "BR", "PT"):
+        params["language"] = region_code.lower()[:2]
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
@@ -179,21 +182,25 @@ def fetch_live_channels(ip_address="", region_code=""):
 
 
 def fetch_vod_categories(ip_address="", region_code=""):
-    headers = pluto_auth._api_headers(ip_address)
-    headers.pop("X-Forwarded-For", None)
-    lang_map = {"IT": "it", "ES": "es", "FR": "fr", "DE": "de", "PT": "pt", "BR": "pt"}
-    lang = lang_map.get(region_code, "en")
-    headers["Accept-Language"] = f"{lang}-{region_code},{lang};q=0.9,en;q=0.8"
-
+    token = pluto_auth.boot(ip_address).get("sessionToken", "")
+    if not token:
+        print(f"[VOD] Nessun token per {region_code}")
+        return {}
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+        "Origin": "https://pluto.tv",
+        "Referer": "https://pluto.tv/",
+        "User-Agent": USER_AGENT,
+        "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
+    }
     params = {
         "includeItems": "true",
         "deviceType": "web",
+        "country": region_code,
     }
-    if region_code:
-        params["country"] = region_code
-        if region_code in lang_map:
-            params["language"] = lang
-
+    if region_code in ("IT", "ES", "FR", "DE", "BR", "PT"):
+        params["language"] = region_code.lower()[:2]
     try:
         resp = requests.get(PLUTO_VOD_URL, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
