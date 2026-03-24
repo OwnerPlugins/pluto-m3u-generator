@@ -170,20 +170,16 @@ def fetch_live_channels_metadata(region_code=""):
         return []
 
 
-def fetch_live_channels_metadata(region_code=""):
-    url = f"{PLUTO_API_URL}/v2/channels"
+def fetch_vod_categories_metadata(region_code=""):
+    url = PLUTO_VOD_URL
     headers = {
         "Accept": "application/json",
         "User-Agent": USER_AGENT,
         "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
     }
     params = {
+        "includeItems": "true",
         "deviceType": "web",
-        "deviceMake": "chrome",
-        "deviceModel": "web",
-        "deviceVersion": "122.0.0",
-        "appName": "web",
-        "appVersion": "8.0.0",
     }
     if region_code:
         params["region"] = region_code
@@ -192,12 +188,12 @@ def fetch_live_channels_metadata(region_code=""):
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
-        channels = resp.json()
-        print(f"[Live] Trovati {len(channels)} canali per {region_code} (solo metadati).")
-        return channels
+        data = resp.json()
+        print(f"[VOD] Trovate {len(data.get('categories', []))} categorie per {region_code} (metadati).")
+        return data
     except Exception as e:
-        print(f"[Live] Errore: {e}")
-        return []
+        print(f"[VOD] Errore metadati: {e}")
+        return {}
 
 
 def generate_live_m3u_with_metadata(channels, output_file, ip_address="", region_code=""):
@@ -370,40 +366,30 @@ def main():
         sys.exit(1)
 
     region_codes = list(regions.keys()) if GENERATE_ALL_REGIONS else [c for c in REGIONS_TO_GENERATE if c in regions]
-    for code in region_codes:
-        name, ip, tids = regions[code]
-        print(f"\n--- Regione: {code} ({name}) ---")
-
-        # # Live
-        # channels = fetch_live_channels(ip, region_code=code)
-        # if channels:
-            # live_file = f"pluto-live-{code}.m3u"
-            # generate_live_m3u(channels, live_file, ip_address=ip, group_by_category=LIVE_GROUP_BY_CATEGORY)
-
-        # # VOD
-        # if GENERATE_VOD:
-            # vod_data = fetch_vod_categories(ip, region_code=code)
-            # if vod_data:
-                # vod_file = f"pluto-vod-{code}.m3u"
-                # generate_vod_m3u(vod_data, vod_file, ip_address=ip, max_items=VOD_MAX_ITEMS)
 
     for code in region_codes:
         name, ip, tids = regions[code]
         print(f"\n--- Regione: {code} ({name}) ---")
 
-        if code == "IT":
-            # Metadati senza token
-            channels = fetch_live_channels_metadata(region_code=code)
-            # Gli URL stream verranno costruiti con il token (da boot IP italiano)
-            # Passa ip_address (che è 5.133.48.0) alla funzione generate_live_m3u
-        else:
-            # Per le altre regioni, puoi decidere se usare token o anche metadati
-            channels = fetch_live_channels(ip, region_code=code) 
+        # 1. Ottieni i metadati (senza token, usando region=XX)
+        channels = fetch_live_channels_metadata(region_code=code)
+        if not channels:
+            # Fallback: prova con token (se i metadati falliscono)
+            channels = fetch_live_channels(ip, region_code=code)
 
         if channels:
             live_file = f"pluto-live-{code}.m3u"
+            # Passa l'IP regionale per costruire gli URL stream
             generate_live_m3u(channels, live_file, ip_address=ip, group_by_category=LIVE_GROUP_BY_CATEGORY)
 
+        # VOD: anche qui, usa metadati senza token e stream con token
+        if GENERATE_VOD:
+            vod_data = fetch_vod_categories_metadata(region_code=code)  # devi creare una funzione simile
+            if not vod_data:
+                vod_data = fetch_vod_categories(ip, region_code=code)
+            if vod_data:
+                vod_file = f"pluto-vod-{code}.m3u"
+                generate_vod_m3u(vod_data, vod_file, ip_address=ip, max_items=VOD_MAX_ITEMS)
 
     print("\nElaborazione completata.")
 
