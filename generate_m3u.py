@@ -140,18 +140,19 @@ def fetch_regions():
 # ------------------------------
 def fetch_live_channels(ip_address="", region_code=""):
     headers = pluto_auth._api_headers(ip_address)
-    headers["Accept-Language"] = "it-IT,it;q=0.9,en;q=0.8"  # preferisci italiano
-    url = f"{PLUTO_API_URL}/v2/channels"
+    headers["Accept-Language"] = f"{region_code.lower()}-{region_code.upper()},{region_code.lower()};q=0.9,en;q=0.8"
+    # Endpoint diverso: /v3/channels?region=XX
+    url = f"{PLUTO_API_URL}/v3/channels"
     params = {
         "deviceType": "web",
         "deviceMake": "chrome",
         "deviceModel": "web",
         "deviceVersion": "122.0.0",
         "appName": "web",
-        "appVersion": "8.0.0"
+        "appVersion": "8.0.0",
+        "region": region_code,
     }
-    if region_code:
-        params["region"] = region_code
+
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
@@ -169,9 +170,8 @@ def fetch_vod_categories(ip_address="", region_code=""):
     params = {
         "includeItems": "true",
         "deviceType": "web",
+        "region": region_code,
     }
-    if region_code:
-        params["region"] = region_code
     try:
         resp = requests.get(PLUTO_VOD_URL, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
