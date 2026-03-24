@@ -201,12 +201,7 @@ def generate_live_m3u(channels, output_file, ip_address="", group_by_category=Tr
                 channel_id = ch.get("_id")
                 if not channel_id:
                     continue
-                # stream_url = pluto_auth.build_stream_url(channel_id, ip_address)
-                orig_url = ch.get("stitched", {}).get("urls", [{}])[0].get("url")
-                if orig_url:
-                    stream_url = orig_url   # contiene già parametri di regione
-                else:
-                    stream_url = pluto_auth.build_stream_url(channel_id, ip_address)
+                stream_url = pluto_auth.build_stream_url(channel_id, ip_address)
                 logo = ch.get("logo", {}).get("path", "") or ch.get("image", "")
                 # Aggiungi group-title per la categoria
                 f.write(f'#EXTINF:-1 group-title="{cat}" tvg-id="{channel_id}" tvg-name="{name}" tvg-logo="{logo}",{name}\n')
