@@ -140,9 +140,8 @@ def fetch_regions():
 # ------------------------------
 def fetch_live_channels(ip_address="", region_code=""):
     headers = pluto_auth._api_headers(ip_address)
-    headers["Accept-Language"] = f"{region_code.lower()}-{region_code.upper()},{region_code.lower()};q=0.9,en;q=0.8"
-    # Endpoint diverso: /v3/channels?region=XX
-    url = f"{PLUTO_API_URL}/v3/channels"
+    headers["Accept-Language"] = "it-IT,it;q=0.9,en;q=0.8"
+    url = f"{PLUTO_API_URL}/v2/channels"
     params = {
         "deviceType": "web",
         "deviceMake": "chrome",
@@ -150,14 +149,19 @@ def fetch_live_channels(ip_address="", region_code=""):
         "deviceVersion": "122.0.0",
         "appName": "web",
         "appVersion": "8.0.0",
-        "region": region_code,
     }
-
+    if region_code:
+        params["country"] = region_code        # forza la regione
+        if region_code == "IT":
+            params["language"] = "it"
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
         channels = resp.json()
         print(f"[Live] Trovati {len(channels)} canali per {region_code}.")
+        # Debug: stampa il primo canale per controllare
+        if channels and region_code == "IT":
+            print(f"[Live] Esempio: {channels[0].get('name')} - {channels[0].get('summary')[:50]}...")
         return channels
     except Exception as e:
         print(f"[Live] Errore: {e}")
@@ -170,8 +174,11 @@ def fetch_vod_categories(ip_address="", region_code=""):
     params = {
         "includeItems": "true",
         "deviceType": "web",
-        "region": region_code,
     }
+    if region_code:
+        params["country"] = region_code
+        if region_code == "IT":
+            params["language"] = "it"
     try:
         resp = requests.get(PLUTO_VOD_URL, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
