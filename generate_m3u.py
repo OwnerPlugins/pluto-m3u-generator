@@ -140,13 +140,12 @@ def fetch_regions():
 # Recupero dati con regione
 # ------------------------------
 def fetch_live_channels(ip_address="", region_code=""):
-    # Ottieni il token dall'IP regionale (questo setta X-Forwarded-For solo per il boot)
+    # Ottieni token (usa l'IP regionale solo per il boot, ma se fallisce usa default)
     token = pluto_auth.boot(ip_address).get("sessionToken", "")
     if not token:
         print(f"[Live] Nessun token per {region_code}")
         return []
 
-    # Costruisci header manualmente, SENZA X-Forwarded-For
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "application/json",
@@ -155,6 +154,8 @@ def fetch_live_channels(ip_address="", region_code=""):
         "User-Agent": USER_AGENT,
         "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
     }
+    # Niente X-Forwarded-For!
+
     url = f"{PLUTO_API_URL}/v2/channels"
     params = {
         "deviceType": "web",
@@ -163,11 +164,12 @@ def fetch_live_channels(ip_address="", region_code=""):
         "deviceVersion": "122.0.0",
         "appName": "web",
         "appVersion": "8.0.0",
-        "country": region_code,           # forza la regione
     }
-    # Aggiungi lingua solo per le regioni che supportano localizzazione
-    if region_code in ("IT", "ES", "FR", "DE", "BR", "PT"):
-        params["language"] = region_code.lower()[:2]
+    if region_code:
+        params["region"] = region_code
+        if region_code == "IT":
+            params["language"] = "it"
+
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
@@ -182,10 +184,12 @@ def fetch_live_channels(ip_address="", region_code=""):
 
 
 def fetch_vod_categories(ip_address="", region_code=""):
+    # Ottieni token (usa l'IP regionale solo per il boot, ma se fallisce usa default)
     token = pluto_auth.boot(ip_address).get("sessionToken", "")
     if not token:
         print(f"[VOD] Nessun token per {region_code}")
         return {}
+
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "application/json",
@@ -194,13 +198,17 @@ def fetch_vod_categories(ip_address="", region_code=""):
         "User-Agent": USER_AGENT,
         "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
     }
+    # Niente X-Forwarded-For!
+
     params = {
         "includeItems": "true",
         "deviceType": "web",
-        "country": region_code,
     }
-    if region_code in ("IT", "ES", "FR", "DE", "BR", "PT"):
-        params["language"] = region_code.lower()[:2]
+    if region_code:
+        params["region"] = region_code
+        if region_code == "IT":
+            params["language"] = "it"
+
     try:
         resp = requests.get(PLUTO_VOD_URL, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
