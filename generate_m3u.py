@@ -161,12 +161,16 @@ def fetch_live_channels_metadata(region_code=""):
             params["language"] = "it"
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
+        if resp.status_code == 429:
+            print(f"[Live] Rate limit per {region_code}, aspetto 2 secondi...")
+            time.sleep(2)
+            resp = requests.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
         channels = resp.json()
         print(f"[Live] Trovati {len(channels)} canali per {region_code} (metadati).")
         return channels
     except Exception as e:
-        print(f"[Live] Errore metadati: {e}")
+        print(f"[Live] Errore metadati per {region_code}: {e}")
         return []
 
 
@@ -187,6 +191,10 @@ def fetch_vod_categories_metadata(region_code=""):
             params["language"] = "it"
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
+        if resp.status_code == 429:
+            print(f"[Live] Rate limit per {region_code}, aspetto 2 secondi...")
+            time.sleep(2)
+            resp = requests.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
         data = resp.json()
         print(f"[VOD] Trovate {len(data.get('categories', []))} categorie per {region_code} (metadati).")
@@ -371,20 +379,33 @@ def main():
         name, ip, tids = regions[code]
         print(f"\n--- Regione: {code} ({name}) ---")
 
-        # 1. Ottieni i metadati (senza token, usando region=XX)
-        channels = fetch_live_channels_metadata(region_code=code)
+        # 1. Tentativo metadati senza token (per regioni supportate)
+        channels = None
+        if code in ("IT", "ES", "FR", "DE", "BR"):  # solo per regioni con localizzazione
+            try:
+                channels = fetch_live_channels_metadata(region_code=code)
+            except Exception as e:
+                print(f"[Live] Errore metadati per {code}: {e}")
+            time.sleep(1)  # rispetta il rate limit
+
+        # 2. Fallback: metadati con token
         if not channels:
-            # Fallback: prova con token (se i metadati falliscono)
+            print(f"[Live] Fallback: uso token per {code}")
             channels = fetch_live_channels(ip, region_code=code)
 
         if channels:
             live_file = f"pluto-live-{code}.m3u"
-            # Passa l'IP regionale per costruire gli URL stream
             generate_live_m3u(channels, live_file, ip_address=ip, group_by_category=LIVE_GROUP_BY_CATEGORY)
 
-        # VOD: anche qui, usa metadati senza token e stream con token
+        # Stessa logica per VOD
         if GENERATE_VOD:
-            vod_data = fetch_vod_categories_metadata(region_code=code)  # devi creare una funzione simile
+            vod_data = None
+            if code in ("IT", "ES", "FR", "DE", "BR"):
+                try:
+                    vod_data = fetch_vod_categories_metadata(region_code=code)
+                except Exception as e:
+                    print(f"[VOD] Errore metadati per {code}: {e}")
+                time.sleep(1)
             if not vod_data:
                 vod_data = fetch_vod_categories(ip, region_code=code)
             if vod_data:
