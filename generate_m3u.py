@@ -4,6 +4,7 @@ import sys
 import json
 import time
 import uuid
+import re
 import requests
 import xml.etree.ElementTree as ET
 from collections import defaultdict
@@ -20,8 +21,8 @@ REGIONS_XML_URL = "https://raw.githubusercontent.com/oe-alliance/PlutoTV/refs/he
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
 GENERATE_ALL_REGIONS = True
-GENERATE_VOD = True          # genera anche file VOD (film)
-VOD_MAX_ITEMS = 500          # limite per evitare file troppo grandi (0 = nessun limite)
+GENERATE_VOD = True
+VOD_MAX_ITEMS = 500
 LIVE_GROUP_BY_CATEGORY = True
 
 
@@ -102,7 +103,6 @@ class PlutoAuth:
 
     def build_vod_stream_url(self, vod_url, ip_address=""):
         token = self.boot(ip_address).get("sessionToken", "")
-        # Pulisce l'URL originale
         path = vod_url.split("?")[0]
         path = re.sub(r"^https?://[^/]+", "", path)
         if path.startswith("/stitch/"):
@@ -110,8 +110,6 @@ class PlutoAuth:
         return f"{self.STITCHER_BASE}{path}?jwt={token}&masterJWTPassthrough=true"
 
 
-# Istanza globale
-import re
 pluto_auth = PlutoAuth()
 
 # ------------------------------
@@ -138,10 +136,11 @@ def fetch_regions():
 
 
 # ------------------------------
-# Recupero dati
+# Recupero dati con regione
 # ------------------------------
-def fetch_live_channels(ip_address=""):
+def fetch_live_channels(ip_address="", region_code=""):
     headers = pluto_auth._api_headers(ip_address)
+    headers["Accept-Language"] = "it-IT,it;q=0.9,en;q=0.8"  # preferisci italiano
     url = f"{PLUTO_API_URL}/v2/channels"
     params = {
         "deviceType": "web",
@@ -149,14 +148,15 @@ def fetch_live_channels(ip_address=""):
         "deviceModel": "web",
         "deviceVersion": "122.0.0",
         "appName": "web",
-        "appVersion": "8.0.0",
-        "region": region_code,
+        "appVersion": "8.0.0"
     }
+    if region_code:
+        params["region"] = region_code
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
         channels = resp.json()
-        print(f"[Live] Trovati {len(channels)} canali.")
+        print(f"[Live] Trovati {len(channels)} canali per {region_code}.")
         return channels
     except Exception as e:
         print(f"[Live] Errore: {e}")
@@ -210,7 +210,6 @@ def generate_live_m3u(channels, output_file, ip_address="", group_by_category=Tr
                     continue
                 stream_url = pluto_auth.build_stream_url(channel_id, ip_address)
                 logo = ch.get("logo", {}).get("path", "") or ch.get("image", "")
-                # Aggiungi group-title per la categoria
                 f.write(f'#EXTINF:-1 group-title="{cat}" tvg-id="{channel_id}" tvg-name="{name}" tvg-logo="{logo}",{name}\n')
                 f.write(f"{stream_url}\n")
     print(f"[Live] File generato: {output_file}")
@@ -234,11 +233,9 @@ def generate_vod_m3u(vod_data, output_file, ip_address="", max_items=0):
             f.write(f'#EXTGRP:{cat_name}\n')
             for movie in movies:
                 name = movie.get("name", "Unknown")
-                # Ottieni l'URL originale dall'API (senza token)
                 orig_url = movie.get("stitched", {}).get("urls", [{}])[0].get("url")
                 if not orig_url:
                     continue
-                # Ricostruisci URL con token fresco
                 stream_url = pluto_auth.build_vod_stream_url(orig_url, ip_address)
                 f.write(f'#EXTINF:-1 tvg-name="{name}",{name}\n')
                 f.write(f"{stream_url}\n")
@@ -264,14 +261,14 @@ def main():
         print(f"\n--- Regione: {code} ({name}) ---")
 
         # Live
-        channels = fetch_live_channels(ip, region_code=code)   # <-- passa code
+        channels = fetch_live_channels(ip, region_code=code)
         if channels:
             live_file = f"pluto-live-{code}.m3u"
             generate_live_m3u(channels, live_file, ip_address=ip, group_by_category=LIVE_GROUP_BY_CATEGORY)
 
         # VOD
         if GENERATE_VOD:
-            vod_data = fetch_vod_categories(ip, region_code=code)   # <-- passa code
+            vod_data = fetch_vod_categories(ip, region_code=code)
             if vod_data:
                 vod_file = f"pluto-vod-{code}.m3u"
                 generate_vod_m3u(vod_data, vod_file, ip_address=ip, max_items=VOD_MAX_ITEMS)
