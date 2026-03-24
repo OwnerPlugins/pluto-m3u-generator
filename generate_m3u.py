@@ -139,8 +139,12 @@ def fetch_regions():
 # Recupero dati con regione
 # ------------------------------
 def fetch_live_channels(ip_address="", region_code=""):
+    # Ottieni headers con token (X-Forwarded-For viene già impostato da _api_headers)
+    # Ma noi lo rimuoviamo perché vogliamo solo il token
     headers = pluto_auth._api_headers(ip_address)
+    headers.pop("X-Forwarded-For", None)          # <-- fondamentale
     headers["Accept-Language"] = "it-IT,it;q=0.9,en;q=0.8"
+
     url = f"{PLUTO_API_URL}/v2/channels"
     params = {
         "deviceType": "web",
@@ -150,17 +154,16 @@ def fetch_live_channels(ip_address="", region_code=""):
         "appName": "web",
         "appVersion": "8.0.0",
     }
+    # Aggiungiamo region= per sicurezza, ma non è obbligatorio
     if region_code:
-        params["country"] = region_code        # forza la regione
-        if region_code == "IT":
-            params["language"] = "it"
+        params["region"] = region_code
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
         channels = resp.json()
         print(f"[Live] Trovati {len(channels)} canali per {region_code}.")
-        # Debug: stampa il primo canale per controllare
-        if channels and region_code == "IT":
+        # Debug: primo canale
+        if channels:
             print(f"[Live] Esempio: {channels[0].get('name')} - {channels[0].get('summary')[:50]}...")
         return channels
     except Exception as e:
@@ -170,15 +173,14 @@ def fetch_live_channels(ip_address="", region_code=""):
 
 def fetch_vod_categories(ip_address="", region_code=""):
     headers = pluto_auth._api_headers(ip_address)
+    headers.pop("X-Forwarded-For", None)
     headers["Accept-Language"] = "it-IT,it;q=0.9,en;q=0.8"
     params = {
         "includeItems": "true",
         "deviceType": "web",
     }
     if region_code:
-        params["country"] = region_code
-        if region_code == "IT":
-            params["language"] = "it"
+        params["region"] = region_code
     try:
         resp = requests.get(PLUTO_VOD_URL, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
