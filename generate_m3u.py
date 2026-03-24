@@ -346,10 +346,16 @@ def main():
         print(f"\n--- Regione: {code} ({name}) ---")
 
         # 1. Prova a ottenere i metadati localizzati (senza token)
-        channels = fetch_live_channels_metadata(region_code=code)
-        if not channels:
-            # 2. Fallback: usa il token
+        # channels = fetch_live_channels_metadata(region_code=code)
+        # if not channels:
+            # # 2. Fallback: usa il token
+            # channels = fetch_live_channels_token(ip, region_code=code)
+
+        if code in ("IT", "ES", "FR", "DE"):
             channels = fetch_live_channels_token(ip, region_code=code)
+        else:
+            channels = fetch_live_channels_metadata(region_code=code)
+
 
         if channels:
             live_file = f"pluto-live-{code}.m3u"
