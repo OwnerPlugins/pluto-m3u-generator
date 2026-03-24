@@ -150,6 +150,7 @@ def fetch_live_channels(ip_address=""):
         "deviceVersion": "122.0.0",
         "appName": "web",
         "appVersion": "8.0.0",
+        "region": region_code,
     }
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
@@ -162,14 +163,20 @@ def fetch_live_channels(ip_address=""):
         return []
 
 
-def fetch_vod_categories(ip_address=""):
+def fetch_vod_categories(ip_address="", region_code=""):
     headers = pluto_auth._api_headers(ip_address)
-    params = {"includeItems": "true", "deviceType": "web"}
+    headers["Accept-Language"] = "it-IT,it;q=0.9,en;q=0.8"
+    params = {
+        "includeItems": "true",
+        "deviceType": "web",
+    }
+    if region_code:
+        params["region"] = region_code
     try:
         resp = requests.get(PLUTO_VOD_URL, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
         data = resp.json()
-        print(f"[VOD] Trovate {len(data.get('categories', []))} categorie.")
+        print(f"[VOD] Trovate {len(data.get('categories', []))} categorie per {region_code}.")
         return data
     except Exception as e:
         print(f"[VOD] Errore: {e}")
@@ -252,20 +259,19 @@ def main():
         sys.exit(1)
 
     region_codes = list(regions.keys()) if GENERATE_ALL_REGIONS else [c for c in REGIONS_TO_GENERATE if c in regions]
-
     for code in region_codes:
         name, ip, tids = regions[code]
         print(f"\n--- Regione: {code} ({name}) ---")
 
         # Live
-        channels = fetch_live_channels(ip)
+        channels = fetch_live_channels(ip, region_code=code)   # <-- passa code
         if channels:
             live_file = f"pluto-live-{code}.m3u"
             generate_live_m3u(channels, live_file, ip_address=ip, group_by_category=LIVE_GROUP_BY_CATEGORY)
 
         # VOD
         if GENERATE_VOD:
-            vod_data = fetch_vod_categories(ip)
+            vod_data = fetch_vod_categories(ip, region_code=code)   # <-- passa code
             if vod_data:
                 vod_file = f"pluto-vod-{code}.m3u"
                 generate_vod_m3u(vod_data, vod_file, ip_address=ip, max_items=VOD_MAX_ITEMS)
