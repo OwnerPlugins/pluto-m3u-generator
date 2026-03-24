@@ -163,6 +163,36 @@ def fetch_live_channels_metadata(region_code=""):
         resp = requests.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
         channels = resp.json()
+        print(f"[Live] Trovati {len(channels)} canali per {region_code} (metadati).")
+        return channels
+    except Exception as e:
+        print(f"[Live] Errore metadati: {e}")
+        return []
+
+
+def fetch_live_channels_metadata(region_code=""):
+    url = f"{PLUTO_API_URL}/v2/channels"
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": USER_AGENT,
+        "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
+    }
+    params = {
+        "deviceType": "web",
+        "deviceMake": "chrome",
+        "deviceModel": "web",
+        "deviceVersion": "122.0.0",
+        "appName": "web",
+        "appVersion": "8.0.0",
+    }
+    if region_code:
+        params["region"] = region_code
+        if region_code == "IT":
+            params["language"] = "it"
+    try:
+        resp = requests.get(url, headers=headers, params=params, timeout=30)
+        resp.raise_for_status()
+        channels = resp.json()
         print(f"[Live] Trovati {len(channels)} canali per {region_code} (solo metadati).")
         return channels
     except Exception as e:
@@ -362,11 +392,13 @@ def main():
         print(f"\n--- Regione: {code} ({name}) ---")
 
         if code == "IT":
-            # Usa la funzione senza token per i metadati
+            # Metadati senza token
             channels = fetch_live_channels_metadata(region_code=code)
+            # Gli URL stream verranno costruiti con il token (da boot IP italiano)
+            # Passa ip_address (che è 5.133.48.0) alla funzione generate_live_m3u
         else:
-            # Per le altre regioni, mantieni il comportamento originale (se vuoi)
-            channels = fetch_live_channels(ip, region_code=code)
+            # Per le altre regioni, puoi decidere se usare token o anche metadati
+            channels = fetch_live_channels(ip, region_code=code) 
 
         if channels:
             live_file = f"pluto-live-{code}.m3u"
