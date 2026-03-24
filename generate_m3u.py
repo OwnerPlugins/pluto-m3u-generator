@@ -140,13 +140,10 @@ def fetch_regions():
 # Recupero dati con regione
 # ------------------------------
 
-def fetch_live_channels_metadata(region_code=""):
-    url = f"{PLUTO_API_URL}/v2/channels"
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": USER_AGENT,
-        "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
-    }
+def fetch_live_channels(ip_address="", region_code=""):
+    headers = pluto_auth._apiHeaders(ip_address)  # include X-Forwarded-For
+    headers["Accept-Language"] = "it-IT,it;q=0.9,en;q=0.8"
+    url = PLUTO_LIVE_URL
     params = {
         "deviceType": "web",
         "deviceMake": "chrome",
@@ -161,26 +158,20 @@ def fetch_live_channels_metadata(region_code=""):
             params["language"] = "it"
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
-        if resp.status_code == 429:
-            print(f"[Live] Rate limit per {region_code}, aspetto 2 secondi...")
-            time.sleep(2)
-            resp = requests.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
         channels = resp.json()
-        print(f"[Live] Trovati {len(channels)} canali per {region_code} (metadati).")
+        print(f"[Live] Trovati {len(channels)} canali per {region_code}.")
+        if channels:
+            print(f"[Live] Esempio: {channels[0].get('name')} - {channels[0].get('summary')[:50]}...")
         return channels
     except Exception as e:
-        print(f"[Live] Errore metadati per {region_code}: {e}")
+        print(f"[Live] Errore: {e}")
         return []
 
 
-def fetch_vod_categories_metadata(region_code=""):
-    url = PLUTO_VOD_URL
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": USER_AGENT,
-        "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
-    }
+def fetch_vod_categories(ip_address="", region_code=""):
+    headers = pluto_auth._apiHeaders(ip_address)  # include X-Forwarded-For
+    headers["Accept-Language"] = "it-IT,it;q=0.9,en;q=0.8"
     params = {
         "includeItems": "true",
         "deviceType": "web",
@@ -190,17 +181,13 @@ def fetch_vod_categories_metadata(region_code=""):
         if region_code == "IT":
             params["language"] = "it"
     try:
-        resp = requests.get(url, headers=headers, params=params, timeout=30)
-        if resp.status_code == 429:
-            print(f"[Live] Rate limit per {region_code}, aspetto 2 secondi...")
-            time.sleep(2)
-            resp = requests.get(url, headers=headers, params=params, timeout=30)
+        resp = requests.get(PLUTO_VOD_URL, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
         data = resp.json()
-        print(f"[VOD] Trovate {len(data.get('categories', []))} categorie per {region_code} (metadati).")
+        print(f"[VOD] Trovate {len(data.get('categories', []))} categorie per {region_code}.")
         return data
     except Exception as e:
-        print(f"[VOD] Errore metadati: {e}")
+        print(f"[VOD] Errore: {e}")
         return {}
 
 
