@@ -129,13 +129,15 @@ def fetch_regions():
 # ------------------------------
 # Metadati (senza token)
 # ------------------------------
-def fetch_live_channels_metadata(region_code=""):
+def fetch_live_channels_metadata(ip_address="", region_code=""):
     url = PLUTO_LIVE_URL
     headers = {
         "Accept": "application/json",
         "User-Agent": USER_AGENT,
         "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
     }
+    if ip_address:
+        headers["X-Forwarded-For"] = ip_address   # <-- fondamentale
     params = {
         "deviceType": "web",
         "deviceMake": "chrome",
@@ -145,25 +147,21 @@ def fetch_live_channels_metadata(region_code=""):
         "appVersion": "8.0.0",
     }
     if region_code:
-        params["region"] = region_code          # <-- CAMBIATO: region, non country
+        params["country"] = region_code   # uso country come nel curl funzionante
         if region_code == "IT":
             params["language"] = "it"
 
-    # Debug: stampa l'URL
     full_url = requests.Request('GET', url, headers=headers, params=params).prepare().url
     print(f"[DEBUG] Metadata URL: {full_url}")
 
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
-        print(f"[DEBUG] Status: {resp.status_code}")
         if resp.status_code == 429:
             print("[DEBUG] Rate limit, aspetto 2 secondi...")
             time.sleep(2)
             resp = requests.get(url, headers=headers, params=params, timeout=30)
-            print(f"[DEBUG] Status dopo attesa: {resp.status_code}")
         resp.raise_for_status()
         text = resp.text
-        # Mostra i primi 500 caratteri per debug
         print(f"[DEBUG] Response preview: {text[:500]}")
         channels = resp.json()
         print(f"[Live] Trovati {len(channels)} canali per {region_code} (metadati).")
@@ -362,12 +360,12 @@ def main():
             # # 2. Fallback: usa il token
             # channels = fetch_live_channels_token(ip, region_code=code)
 
-        if code in ("IT", "ES", "FR", "DE"):
-            channels = fetch_live_channels_token(ip, region_code=code)
-        else:
-            channels = fetch_live_channels_metadata(region_code=code)
+        # if code in ("IT", "ES", "FR", "DE"):
+            # channels = fetch_live_channels_token(ip, region_code=code)
+        # else:
+            # channels = fetch_live_channels_metadata(region_code=code)
 
-
+        channels = fetch_live_channels_metadata(ip_address=ip, region_code=code)
         if channels:
             live_file = f"pluto-live-{code}.m3u"
             generate_live_m3u(channels, live_file, ip_address=ip, group_by_category=LIVE_GROUP_BY_CATEGORY)
