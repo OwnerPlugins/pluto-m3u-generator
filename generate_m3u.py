@@ -406,9 +406,9 @@ def main():
 
         # VOD
         if GENERATE_VOD:
-            vod_data = fetch_vod_categories_metadata(region_code=code)
+            vod_data = fetch_vod_categories_metadata(ip_address=ip, region_code=code)            
             if not vod_data:
-                vod_data = fetch_vod_categories_metadata(ip_address=ip, region_code=code)
+                vod_data = fetch_vod_categories_metadata(region_code=code)
             if vod_data:
                 vod_file = f"pluto-vod-{code}.m3u"
                 generate_vod_m3u(vod_data, vod_file, ip_address=ip, max_items=VOD_MAX_ITEMS, region_code=code)
