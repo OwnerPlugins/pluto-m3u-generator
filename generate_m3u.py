@@ -54,12 +54,20 @@ class PlutoAuth:
         cached = self.cache.get(cache_key)
         if cached and time.time() < cached["exp"] - 60:
             return cached["response"]
+        # headers = {
+            # "authority": "boot.pluto.tv",
+            # "accept": "*/*",
+            # "origin": "https://pluto.tv",
+            # "referer": "https://pluto.tv/",
+            # "user-agent": USER_AGENT,
+        # }
         headers = {
             "authority": "boot.pluto.tv",
             "accept": "*/*",
             "origin": "https://pluto.tv",
             "referer": "https://pluto.tv/",
             "user-agent": USER_AGENT,
+            "accept-language": "it-IT,it;q=0.9,en;q=0.8",
         }
         params = {
             "appName": "web",
@@ -89,7 +97,10 @@ class PlutoAuth:
 
     def build_stream_url(self, channel_id, ip_address=""):
         token = self.boot(ip_address).get("sessionToken", "")
-        return f"{self.STITCHER_BASE}/v2/stitch/hls/channel/{channel_id}/master.m3u8?jwt={token}&masterJWTPassthrough=true"
+        url = f"{self.STITCHER_BASE}/v2/stitch/hls/channel/{channel_id}/master.m3u8?jwt={token}&masterJWTPassthrough=true"
+        if ip_address and ip_address.startswith("5.133"):   # IP italiano
+            url += "&audioLanguage=it"
+        return url
 
     def build_vod_stream_url(self, vod_url, ip_address=""):
         token = self.boot(ip_address).get("sessionToken", "")
@@ -97,7 +108,10 @@ class PlutoAuth:
         path = re.sub(r"^https?://[^/]+", "", path)
         if path.startswith("/stitch/"):
             path = "/v2" + path
-        return f"{self.STITCHER_BASE}{path}?jwt={token}&masterJWTPassthrough=true"
+        url = f"{self.STITCHER_BASE}{path}?jwt={token}&masterJWTPassthrough=true"
+        if ip_address and ip_address.startswith("5.133"):   # IP italiano
+            url += "&audioLanguage=it"
+        return url
 
 
 pluto_auth = PlutoAuth()
