@@ -88,7 +88,12 @@ class PlutoAuth:
             resp = self.session.get(self.BOOT_URL, headers=headers, params=params, timeout=10).json()
             token = resp.get("sessionToken", "")
             exp = self._token_expiry(token)
-            self.cache[cache_key] = {"response": resp, "exp": exp}
+            self.cache[cache_key] = {
+                "response": resp,
+                "exp": exp,
+                "stitcherUrl": resp.get("servers", {}).get("stitcher", self.STITCHER_BASE),
+                "stitcherParams": resp.get("stitcherParams", ""),   # <-- nuovo
+            }
             print(f"[PlutoAuth] New token for {cache_key}, expires {exp}")
             return resp
         except Exception as e:
@@ -103,15 +108,36 @@ class PlutoAuth:
         return url
 
     def build_vod_stream_url(self, vod_url, ip_address=""):
-        token = self.boot(ip_address).get("sessionToken", "")
-        path = vod_url.split("?")[0]
-        path = re.sub(r"^https?://[^/]+", "", path)
-        if path.startswith("/stitch/"):
-            path = "/v2" + path
-        url = f"{self.STITCHER_BASE}{path}?jwt={token}&masterJWTPassthrough=true"
-        if ip_address and ip_address.startswith("5.133"):   # IP italiano
-            url += "&audioLanguage=it&preferredAudioLanguage=it"
-        return url
+        # Estrai il path e i parametri originali
+        from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+        parsed = urlparse(vod_url)
+        base = urlunparse(parsed._replace(query=""))  # rimuove la query originale
+        orig_query = parse_qs(parsed.query)
+        cache_key = ip_address or "default"
+        cache = self.cache.get(cache_key, {})
+        token = cache.get("response", {}).get("sessionToken", "")
+        stitcher_params = cache.get("stitcherParams", "")
+
+        # Prepara i nuovi parametri
+        params = {
+            "jwt": token,
+            "masterJWTPassthrough": "true",
+        }
+        if ip_address and ip_address.startswith("5.133"):
+            params["audioLanguage"] = "it"
+        # Aggiungi i parametri originali (es. marketingRegion)
+        for k, v in orig_query.items():
+            if k not in params:
+                params[k] = v[0] if len(v) == 1 else v
+        # Aggiungi stitcherParams se presenti
+        if stitcher_params:
+            for pair in stitcher_params.split('&'):
+                if '=' in pair:
+                    k, v = pair.split('=', 1)
+                    if k not in params:
+                        params[k] = v
+        new_query = urlencode(params, doseq=True)
+        return f"{base}?{new_query}"
 
 
 pluto_auth = PlutoAuth()
