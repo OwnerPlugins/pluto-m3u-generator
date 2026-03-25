@@ -314,15 +314,21 @@ def generate_vod_m3u(vod_data, output_file, ip_address="", max_items=0):
         print(f"[VOD] Nessuna categoria, salto {output_file}")
         return
 
+    # Ordina le categorie per nome
+    categories.sort(key=lambda cat: cat.get("name", "").lower())
+
     total_written = 0
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("#EXTM3U\n")
         for cat in categories:
             cat_name = cat.get("name", "Unknown")
             items = cat.get("items", [])
+            # Filtra solo i film
             movies = [item for item in items if item.get("type") == "movie"]
             if not movies:
                 continue
+            # Ordina i film per nome
+            movies.sort(key=lambda m: m.get("name", "").lower())
             f.write(f'#EXTGRP:{cat_name}\n')
             for movie in movies:
                 name = movie.get("name", "Unknown")
