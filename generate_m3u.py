@@ -274,35 +274,35 @@ def fetch_live_channels_token(ip_address="", region_code=""):
         return []
 
 
-def fetch_vod_categories_token(ip_address="", region_code=""):
-    token = pluto_auth.boot(ip_address).get("sessionToken", "")
-    if not token:
-        return {}
+def fetch_vod_categories_metadata(ip_address="", region_code=""):
+    url = PLUTO_VOD_URL
     headers = {
-        "Authorization": f"Bearer {token}",
         "Accept": "application/json",
-        "Origin": "https://pluto.tv",
-        "Referer": "https://pluto.tv/",
         "User-Agent": USER_AGENT,
         "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
-        "X-Forwarded-For": ip_address,
     }
+    if ip_address:
+        headers["X-Forwarded-For"] = ip_address
     params = {
         "includeItems": "true",
         "deviceType": "web",
     }
     if region_code:
-        params["region"] = region_code
+        params["country"] = region_code
         if region_code == "IT":
             params["language"] = "it"
     try:
-        resp = requests.get(PLUTO_VOD_URL, headers=headers, params=params, timeout=30)
+        resp = requests.get(url, headers=headers, params=params, timeout=30)
+        if resp.status_code == 429:
+            print(f"[VOD] Rate limit per {region_code}, aspetto 2 secondi...")
+            time.sleep(2)
+            resp = requests.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
         data = resp.json()
-        print(f"[VOD] Trovate {len(data.get('categories', []))} categorie per {region_code} (token).")
+        print(f"[VOD] Trovate {len(data.get('categories', []))} categorie per {region_code} (metadati).")
         return data
     except Exception as e:
-        print(f"[VOD] Errore token per {region_code}: {e}")
+        print(f"[VOD] Errore metadati per {region_code}: {e}")
         return {}
 
 
@@ -408,7 +408,7 @@ def main():
         if GENERATE_VOD:
             vod_data = fetch_vod_categories_metadata(region_code=code)
             if not vod_data:
-                vod_data = fetch_vod_categories_token(ip, region_code=code)
+                vod_data = fetch_vod_categories_metadata(ip_address=ip, region_code=code)
             if vod_data:
                 vod_file = f"pluto-vod-{code}.m3u"
                 generate_vod_m3u(vod_data, vod_file, ip_address=ip, max_items=VOD_MAX_ITEMS, region_code=code)
