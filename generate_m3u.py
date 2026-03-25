@@ -109,7 +109,7 @@ class PlutoAuth:
         if path.startswith("/stitch/"):
             path = "/v2" + path
         url = f"{self.STITCHER_BASE}{path}?jwt={token}&masterJWTPassthrough=true"
-        if ip_address and ip_address.startswith("5.133"):  # IP italiano
+        if ip_address and ip_address.startswith("5.133"):   # IP italiano
             url += "&audioLanguage=it&preferredAudioLanguage=it"
         return url
 
@@ -309,7 +309,7 @@ def fetch_vod_categories_token(ip_address="", region_code=""):
 # ------------------------------
 # Generazione M3U
 # ------------------------------
-def generate_live_m3u(channels, output_file, ip_address="", group_by_category=True):
+def generate_live_m3u(channels, output_file, ip_address="", group_by_category=True, region_code=""):
     if not channels:
         print(f"[Live] Nessun canale, salto {output_file}")
         return
@@ -344,7 +344,7 @@ def generate_live_m3u(channels, output_file, ip_address="", group_by_category=Tr
     print(f"[Live] File generato: {output_file}")
 
 
-def generate_vod_m3u(vod_data, output_file, ip_address="", max_items=0):
+def generate_vod_m3u(vod_data, output_file, ip_address="", max_items=0, region_code=""):
     categories = vod_data.get("categories", [])
     if not categories:
         print(f"[VOD] Nessuna categoria, salto {output_file}")
@@ -360,7 +360,6 @@ def generate_vod_m3u(vod_data, output_file, ip_address="", max_items=0):
         for cat in categories:
             cat_name = cat.get("name", "Unknown")
             items = cat.get("items", [])
-            # Filtra solo i film
             movies = [item for item in items if item.get("type") == "movie"]
             if not movies:
                 continue
@@ -372,13 +371,12 @@ def generate_vod_m3u(vod_data, output_file, ip_address="", max_items=0):
                 orig_url = movie.get("stitched", {}).get("urls", [{}])[0].get("url")
                 if not orig_url:
                     continue
-                    
                 stream_url = pluto_auth.build_vod_stream_url(orig_url, ip_address)
+                # Debug per il primo VOD italiano
                 if region_code == "IT" and not first_printed:
-                    print(f"[DEBUG] Analisi tracce audio VOD: {name}")
-                    print_audio_tracks(stream_url)
+                    print(f"[DEBUG] Analisi tracce audio per VOD: {name}")
+                    print_audio_tracks(stream_url)   # usa la funzione di debug già definita
                     first_printed = True
-
                 f.write(f'#EXTINF:-1 tvg-name="{name}",{name}\n')
                 f.write(f"{stream_url}\n")
                 total_written += 1
@@ -386,7 +384,6 @@ def generate_vod_m3u(vod_data, output_file, ip_address="", max_items=0):
                     print(f"[VOD] Limite di {max_items} voci raggiunto.")
                     return
     print(f"[VOD] File generato: {output_file} ({total_written} voci)")
-
 
 # ------------------------------
 # Main
@@ -405,7 +402,7 @@ def main():
         channels = fetch_live_channels_metadata(ip_address=ip, region_code=code)
         if channels:
             live_file = f"pluto-live-{code}.m3u"
-            generate_live_m3u(channels, live_file, ip_address=ip, group_by_category=LIVE_GROUP_BY_CATEGORY)
+            generate_live_m3u(channels, live_file, ip_address=ip, group_by_category=LIVE_GROUP_BY_CATEGORY, region_code=code)
 
         # VOD
         if GENERATE_VOD:
@@ -414,7 +411,7 @@ def main():
                 vod_data = fetch_vod_categories_token(ip, region_code=code)
             if vod_data:
                 vod_file = f"pluto-vod-{code}.m3u"
-                generate_vod_m3u(vod_data, vod_file, ip_address=ip, max_items=VOD_MAX_ITEMS)
+                generate_vod_m3u(vod_data, vod_file, ip_address=ip, max_items=VOD_MAX_ITEMS, region_code=code
 
         time.sleep(1)
 
