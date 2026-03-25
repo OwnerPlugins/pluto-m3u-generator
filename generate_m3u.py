@@ -214,37 +214,6 @@ def fetch_live_channels_metadata(ip_address="", region_code=""):
         return []
 
 
-# def fetch_vod_categories_metadata(region_code=""):
-    # """Chiamata senza token per VOD localizzati."""
-    # url = PLUTO_VOD_URL
-    # headers = {
-        # "Accept": "application/json",
-        # "User-Agent": USER_AGENT,
-        # "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
-    # }
-    # params = {
-        # "includeItems": "true",
-        # "deviceType": "web",
-    # }
-    # if region_code:
-        # params["country"] = region_code
-        # if region_code == "IT":
-            # params["language"] = "it"
-    # try:
-        # resp = requests.get(url, headers=headers, params=params, timeout=30)
-        # if resp.status_code == 429:
-            # print(f"[VOD] Rate limit per {region_code}, aspetto 2 secondi...")
-            # time.sleep(2)
-            # resp = requests.get(url, headers=headers, params=params, timeout=30)
-        # resp.raise_for_status()
-        # data = resp.json()
-        # print(f"[VOD] Trovate {len(data.get('categories', []))} categorie per {region_code} (metadati).")
-        # return data
-    # except Exception as e:
-        # print(f"[VOD] Errore metadati per {region_code}: {e}")
-        # return {}
-
-
 # ------------------------------
 # Metadati per VOD (senza token, con X-Forwarded-For)
 
