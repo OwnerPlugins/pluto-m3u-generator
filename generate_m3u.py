@@ -109,12 +109,28 @@ class PlutoAuth:
         if path.startswith("/stitch/"):
             path = "/v2" + path
         url = f"{self.STITCHER_BASE}{path}?jwt={token}&masterJWTPassthrough=true"
-        if ip_address and ip_address.startswith("5.133"):   # IP italiano
-            url += "&audioLanguage=it"
+        if ip_address and ip_address.startswith("5.133"):  # IP italiano
+            url += "&audioLanguage=it&preferredAudioLanguage=it"
         return url
 
 
 pluto_auth = PlutoAuth()
+
+
+def print_audio_tracks(master_url):
+    try:
+        resp = requests.get(master_url, timeout=10)
+        resp.raise_for_status()
+        lines = resp.text.splitlines()
+        audio_tracks = []
+        for line in lines:
+            if '#EXT-X-MEDIA:TYPE=AUDIO' in line:
+                audio_tracks.append(line)
+        print(f"[DEBUG] Tracce audio trovate: {len(audio_tracks)}")
+        for track in audio_tracks:
+            print(f"    {track}")
+    except Exception as e:
+        print(f"[DEBUG] Errore nel recupero manifest: {e}")
 
 
 # ------------------------------
@@ -307,6 +323,7 @@ def generate_live_m3u(channels, output_file, ip_address="", group_by_category=Tr
     else:
         sorted_cats = [("All", channels)]
 
+    first_printed = False
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("#EXTM3U\n")
         for cat, ch_list in sorted_cats:
@@ -316,6 +333,11 @@ def generate_live_m3u(channels, output_file, ip_address="", group_by_category=Tr
                 if not channel_id:
                     continue
                 stream_url = pluto_auth.build_stream_url(channel_id, ip_address)
+                if region_code == "IT" and not first_printed:
+                    print(f"[DEBUG] Analisi tracce audio VOD: {name}")
+                    print_audio_tracks(stream_url)
+                    first_printed = True
+
                 logo = ch.get("logo", {}).get("path", "") or ch.get("image", "")
                 f.write(f'#EXTINF:-1 group-title="{cat}" tvg-id="{channel_id}" tvg-name="{name}" tvg-logo="{logo}",{name}\n')
                 f.write(f"{stream_url}\n")
@@ -332,6 +354,7 @@ def generate_vod_m3u(vod_data, output_file, ip_address="", max_items=0):
     categories.sort(key=lambda cat: cat.get("name", "").lower())
 
     total_written = 0
+    first_printed = False
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("#EXTM3U\n")
         for cat in categories:
@@ -349,7 +372,13 @@ def generate_vod_m3u(vod_data, output_file, ip_address="", max_items=0):
                 orig_url = movie.get("stitched", {}).get("urls", [{}])[0].get("url")
                 if not orig_url:
                     continue
+                    
                 stream_url = pluto_auth.build_vod_stream_url(orig_url, ip_address)
+                if region_code == "IT" and not first_printed:
+                    print(f"[DEBUG] Analisi tracce audio VOD: {name}")
+                    print_audio_tracks(stream_url)
+                    first_printed = True
+
                 f.write(f'#EXTINF:-1 tvg-name="{name}",{name}\n')
                 f.write(f"{stream_url}\n")
                 total_written += 1
