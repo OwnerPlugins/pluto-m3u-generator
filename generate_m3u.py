@@ -92,7 +92,7 @@ class PlutoAuth:
                 "response": resp,
                 "exp": exp,
                 "stitcherUrl": resp.get("servers", {}).get("stitcher", self.STITCHER_BASE),
-                "stitcherParams": resp.get("stitcherParams", ""),   # <-- nuovo
+                "stitcherParams": resp.get("stitcherParams", ""),
             }
             print(f"[PlutoAuth] New token for {cache_key}, expires {exp}")
             return resp
@@ -103,41 +103,36 @@ class PlutoAuth:
     def build_stream_url(self, channel_id, ip_address=""):
         token = self.boot(ip_address).get("sessionToken", "")
         url = f"{self.STITCHER_BASE}/v2/stitch/hls/channel/{channel_id}/master.m3u8?jwt={token}&masterJWTPassthrough=true"
-        if ip_address and ip_address.startswith("5.133"):   # IP italiano
+        if ip_address and ip_address.startswith("5.133"):
             url += "&audioLanguage=it"
         return url
 
     def build_vod_stream_url(self, vod_url, ip_address=""):
-        # Estrai il path e i parametri originali
-        from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
-        parsed = urlparse(vod_url)
-        base = urlunparse(parsed._replace(query=""))  # rimuove la query originale
-        orig_query = parse_qs(parsed.query)
+        # # Estrai il path e i parametri originali
+        # from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+        # parsed = urlparse(vod_url)
+        # base = urlunparse(parsed._replace(query=""))  # rimuove la query originale
+        # orig_query = parse_qs(parsed.query)
         cache_key = ip_address or "default"
         cache = self.cache.get(cache_key, {})
         token = cache.get("response", {}).get("sessionToken", "")
+        if not token:
+            token = self.boot(ip_address).get("sessionToken", "")
+        stitcher_url = cache.get("stitcherUrl", self.STITCHER_BASE)
         stitcher_params = cache.get("stitcherParams", "")
 
-        # Prepara i nuovi parametri
-        params = {
-            "jwt": token,
-            "masterJWTPassthrough": "true",
-        }
-        if ip_address and ip_address.startswith("5.133"):
-            params["audioLanguage"] = "it"
-        # Aggiungi i parametri originali (es. marketingRegion)
-        for k, v in orig_query.items():
-            if k not in params:
-                params[k] = v[0] if len(v) == 1 else v
-        # Aggiungi stitcherParams se presenti
+        # Estrai il path dall'URL originale (senza host e query)
+        path = vod_url.split("?")[0]
+        path = re.sub(r"^https?://[^/]+", "", path)
+        if path.startswith("/stitch/"):
+            path = "/v2" + path
+
+        url = f"{stitcher_url}{path}?jwt={token}&masterJWTPassthrough=true"
         if stitcher_params:
-            for pair in stitcher_params.split('&'):
-                if '=' in pair:
-                    k, v = pair.split('=', 1)
-                    if k not in params:
-                        params[k] = v
-        new_query = urlencode(params, doseq=True)
-        return f"{base}?{new_query}"
+            url += f"&{stitcher_params}"
+        if ip_address and ip_address.startswith("5.133"):
+            url += "&audioLanguage=it"
+        return url
 
 
 pluto_auth = PlutoAuth()
@@ -432,9 +427,7 @@ def main():
 
         # VOD
         if GENERATE_VOD:
-            vod_data = fetch_vod_categories_metadata(ip_address=ip, region_code=code)            
-            if not vod_data:
-                vod_data = fetch_vod_categories_metadata(region_code=code)
+            vod_data = fetch_vod_categories_metadata(ip_address=ip, region_code=code)
             if vod_data:
                 vod_file = f"pluto-vod-{code}.m3u"
                 generate_vod_m3u(vod_data, vod_file, ip_address=ip, max_items=VOD_MAX_ITEMS, region_code=code)
