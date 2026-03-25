@@ -8,6 +8,7 @@ import requests
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from base64 import urlsafe_b64decode
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 
 # ------------------------------
@@ -27,7 +28,7 @@ VOD_MAX_ITEMS = 500
 
 
 # ------------------------------
-# PlutoAuth (solo per token e stream)
+# PlutoAuth (gestisce token e stream)
 # ------------------------------
 class PlutoAuth:
     BOOT_URL = "https://boot.pluto.tv/v4/start"
@@ -54,13 +55,6 @@ class PlutoAuth:
         cached = self.cache.get(cache_key)
         if cached and time.time() < cached["exp"] - 60:
             return cached["response"]
-        # headers = {
-            # "authority": "boot.pluto.tv",
-            # "accept": "*/*",
-            # "origin": "https://pluto.tv",
-            # "referer": "https://pluto.tv/",
-            # "user-agent": USER_AGENT,
-        # }
         headers = {
             "authority": "boot.pluto.tv",
             "accept": "*/*",
@@ -103,16 +97,11 @@ class PlutoAuth:
     def build_stream_url(self, channel_id, ip_address=""):
         token = self.boot(ip_address).get("sessionToken", "")
         url = f"{self.STITCHER_BASE}/v2/stitch/hls/channel/{channel_id}/master.m3u8?jwt={token}&masterJWTPassthrough=true"
-        if ip_address and ip_address.startswith("5.133"):
+        if ip_address and ip_address.startswith("5.133"):   # IP italiano
             url += "&audioLanguage=it"
         return url
 
     def build_vod_stream_url(self, vod_url, ip_address=""):
-        # # Estrai il path e i parametri originali
-        # from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
-        # parsed = urlparse(vod_url)
-        # base = urlunparse(parsed._replace(query=""))  # rimuove la query originale
-        # orig_query = parse_qs(parsed.query)
         cache_key = ip_address or "default"
         cache = self.cache.get(cache_key, {})
         token = cache.get("response", {}).get("sessionToken", "")
@@ -138,6 +127,9 @@ class PlutoAuth:
 pluto_auth = PlutoAuth()
 
 
+# ------------------------------
+# Debug: stampa le tracce audio di un flusso
+# ------------------------------
 def print_audio_tracks(master_url):
     try:
         resp = requests.get(master_url, timeout=10)
@@ -155,7 +147,7 @@ def print_audio_tracks(master_url):
 
 
 # ------------------------------
-# Caricamento regioni
+# Caricamento regioni da XML
 # ------------------------------
 def fetch_regions():
     try:
@@ -178,7 +170,7 @@ def fetch_regions():
 
 
 # ------------------------------
-# Metadati (senza token)
+# Metadati per canali live (senza token, con X-Forwarded-For)
 # ------------------------------
 def fetch_live_channels_metadata(ip_address="", region_code=""):
     url = PLUTO_LIVE_URL
@@ -188,7 +180,7 @@ def fetch_live_channels_metadata(ip_address="", region_code=""):
         "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
     }
     if ip_address:
-        headers["X-Forwarded-For"] = ip_address   # <-- fondamentale
+        headers["X-Forwarded-For"] = ip_address
     params = {
         "deviceType": "web",
         "deviceMake": "chrome",
@@ -198,12 +190,12 @@ def fetch_live_channels_metadata(ip_address="", region_code=""):
         "appVersion": "8.0.0",
     }
     if region_code:
-        params["country"] = region_code   # uso country come nel curl funzionante
+        params["country"] = region_code
         if region_code == "IT":
             params["language"] = "it"
 
-    full_url = requests.Request('GET', url, headers=headers, params=params).prepare().url
-    print(f"[DEBUG] Metadata URL: {full_url}")
+    # full_url = requests.Request('GET', url, headers=headers, params=params).prepare().url
+    # print(f"[DEBUG] Metadata URL: {full_url}")
 
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
@@ -212,8 +204,6 @@ def fetch_live_channels_metadata(ip_address="", region_code=""):
             time.sleep(2)
             resp = requests.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
-        text = resp.text
-        print(f"[DEBUG] Response preview: {text[:500]}")
         channels = resp.json()
         print(f"[Live] Trovati {len(channels)} canali per {region_code} (metadati).")
         if channels:
@@ -224,75 +214,39 @@ def fetch_live_channels_metadata(ip_address="", region_code=""):
         return []
 
 
-def fetch_vod_categories_metadata(region_code=""):
-    """Chiamata senza token per VOD localizzati."""
-    url = PLUTO_VOD_URL
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": USER_AGENT,
-        "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
-    }
-    params = {
-        "includeItems": "true",
-        "deviceType": "web",
-    }
-    if region_code:
-        params["country"] = region_code
-        if region_code == "IT":
-            params["language"] = "it"
-    try:
-        resp = requests.get(url, headers=headers, params=params, timeout=30)
-        if resp.status_code == 429:
-            print(f"[VOD] Rate limit per {region_code}, aspetto 2 secondi...")
-            time.sleep(2)
-            resp = requests.get(url, headers=headers, params=params, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        print(f"[VOD] Trovate {len(data.get('categories', []))} categorie per {region_code} (metadati).")
-        return data
-    except Exception as e:
-        print(f"[VOD] Errore metadati per {region_code}: {e}")
-        return {}
+# def fetch_vod_categories_metadata(region_code=""):
+    # """Chiamata senza token per VOD localizzati."""
+    # url = PLUTO_VOD_URL
+    # headers = {
+        # "Accept": "application/json",
+        # "User-Agent": USER_AGENT,
+        # "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
+    # }
+    # params = {
+        # "includeItems": "true",
+        # "deviceType": "web",
+    # }
+    # if region_code:
+        # params["country"] = region_code
+        # if region_code == "IT":
+            # params["language"] = "it"
+    # try:
+        # resp = requests.get(url, headers=headers, params=params, timeout=30)
+        # if resp.status_code == 429:
+            # print(f"[VOD] Rate limit per {region_code}, aspetto 2 secondi...")
+            # time.sleep(2)
+            # resp = requests.get(url, headers=headers, params=params, timeout=30)
+        # resp.raise_for_status()
+        # data = resp.json()
+        # print(f"[VOD] Trovate {len(data.get('categories', []))} categorie per {region_code} (metadati).")
+        # return data
+    # except Exception as e:
+        # print(f"[VOD] Errore metadati per {region_code}: {e}")
+        # return {}
 
 
 # ------------------------------
-# Funzioni con token (fallback)
-# ------------------------------
-def fetch_live_channels_token(ip_address="", region_code=""):
-    """Usa il token (con X-Forwarded-For) – fallback se i metadati falliscono."""
-    token = pluto_auth.boot(ip_address).get("sessionToken", "")
-    if not token:
-        return []
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/json",
-        "Origin": "https://pluto.tv",
-        "Referer": "https://pluto.tv/",
-        "User-Agent": USER_AGENT,
-        "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
-        "X-Forwarded-For": ip_address,   # importante: lo aggiungiamo manualmente
-    }
-    params = {
-        "deviceType": "web",
-        "deviceMake": "chrome",
-        "deviceModel": "web",
-        "deviceVersion": "122.0.0",
-        "appName": "web",
-        "appVersion": "8.0.0",
-    }
-    if region_code:
-        params["region"] = region_code
-        if region_code == "IT":
-            params["language"] = "it"
-    try:
-        resp = requests.get(PLUTO_LIVE_URL, headers=headers, params=params, timeout=30)
-        resp.raise_for_status()
-        channels = resp.json()
-        print(f"[Live] Trovati {len(channels)} canali per {region_code} (token).")
-        return channels
-    except Exception as e:
-        print(f"[Live] Errore token per {region_code}: {e}")
-        return []
+# Metadati per VOD (senza token, con X-Forwarded-For)
 
 
 def fetch_vod_categories_metadata(ip_address="", region_code=""):
@@ -328,7 +282,7 @@ def fetch_vod_categories_metadata(ip_address="", region_code=""):
 
 
 # ------------------------------
-# Generazione M3U
+# Generazione file M3U per canali live
 # ------------------------------
 def generate_live_m3u(channels, output_file, ip_address="", group_by_category=True, region_code=""):
     if not channels:
@@ -365,6 +319,9 @@ def generate_live_m3u(channels, output_file, ip_address="", group_by_category=Tr
     print(f"[Live] File generato: {output_file}")
 
 
+# ------------------------------
+# Generazione file M3U per VOD
+# ------------------------------
 def generate_vod_m3u(vod_data, output_file, ip_address="", max_items=0, region_code=""):
     categories = vod_data.get("categories", [])
     if not categories:
@@ -396,7 +353,7 @@ def generate_vod_m3u(vod_data, output_file, ip_address="", max_items=0, region_c
                 # Debug per il primo VOD italiano
                 if region_code == "IT" and not first_printed:
                     print(f"[DEBUG] Analisi tracce audio per VOD: {name}")
-                    print_audio_tracks(stream_url)   # usa la funzione di debug già definita
+                    print_audio_tracks(stream_url)
                     first_printed = True
                 f.write(f'#EXTINF:-1 tvg-name="{name}",{name}\n')
                 f.write(f"{stream_url}\n")
@@ -420,6 +377,7 @@ def main():
     for code in region_codes:
         name, ip, tids = regions[code]
         print(f"\n--- Regione: {code} ({name}) ---")
+        # Canali live
         channels = fetch_live_channels_metadata(ip_address=ip, region_code=code)
         if channels:
             live_file = f"pluto-live-{code}.m3u"
