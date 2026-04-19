@@ -1,6 +1,10 @@
-![](https://komarev.com/ghpvc/?username=Belfagor2005)
+<h1 align="center">🎬 Pluto TV M3U Generator</h1>
 
-# Pluto TV M3U Generator
+![Visitors](https://komarev.com/ghpvc/?username=Belfagor2005&label=Repository%20Views&color=blueviolet)
+[![Version](https://img.shields.io/badge/Version-1.0-blue.svg)]
+[![License](https://img.shields.io/badge/License-MIT-green.svg)]
+[![Donate](https://img.shields.io/badge/_-Donate-red.svg?logo=githubsponsors&labelColor=555555&style=for-the-badge)](Maintainers.md#maintainers "Donate")
+
 
 This repository contains an automated workflow that generates M3U playlists for Pluto TV channels and VOD (movies) for **all supported regions**.  
 The playlists are updated every 6 hours and pushed to a **public repository** of your choice.
