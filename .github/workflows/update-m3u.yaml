@@ -36,4 +36,4 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add *.m3u
           git diff --quiet && git diff --staged --quiet || git commit -m "Aggiornamento automatico $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
-          git push
+          git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/Belfagor2005/pluto-tv-m3u.git HEAD:main
