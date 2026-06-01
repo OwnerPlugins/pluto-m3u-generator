@@ -291,6 +291,7 @@ def generate_live_m3u(channels, output_file, ip_address="", group_by_category=Tr
 # ------------------------------
 # Generazione file M3U per VOD
 # ------------------------------
+
 def generate_vod_m3u(vod_data, output_file, ip_address="", max_items=0, region_code=""):
     categories = vod_data.get("categories", [])
     if not categories:
@@ -302,34 +303,59 @@ def generate_vod_m3u(vod_data, output_file, ip_address="", max_items=0, region_c
 
     total_written = 0
     first_printed = False
+
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("#EXTM3U\n")
+
         for cat in categories:
             cat_name = cat.get("name", "Unknown")
             items = cat.get("items", [])
-            movies = [item for item in items if item.get("type") == "movie"]
+
+            movies = [
+                item for item in items
+                if item.get("type") == "movie"
+            ]
+
             if not movies:
                 continue
+
             # Ordina i film per nome
             movies.sort(key=lambda m: m.get("name", "").lower())
-            f.write(f'#EXTGRP:{cat_name}\n')
+
             for movie in movies:
                 name = movie.get("name", "Unknown")
-                orig_url = movie.get("stitched", {}).get("urls", [{}])[0].get("url")
+
+                orig_url = (
+                    movie.get("stitched", {})
+                    .get("urls", [{}])[0]
+                    .get("url")
+                )
+
                 if not orig_url:
                     continue
-                stream_url = pluto_auth.build_vod_stream_url(orig_url, ip_address)
+
+                stream_url = pluto_auth.build_vod_stream_url(
+                    orig_url,
+                    ip_address
+                )
+
                 # Debug per il primo VOD italiano
                 if region_code == "IT" and not first_printed:
                     print(f"[DEBUG] Analisi tracce audio per VOD: {name}")
                     print_audio_tracks(stream_url)
                     first_printed = True
-                f.write(f'#EXTINF:-1 tvg-name="{name}",{name}\n')
+
+                f.write(
+                    f'#EXTINF:-1 group-title="{cat_name}" tvg-name="{name}",{name}\n'
+                )
                 f.write(f"{stream_url}\n")
+
                 total_written += 1
+
                 if max_items > 0 and total_written >= max_items:
                     print(f"[VOD] Limite di {max_items} voci raggiunto.")
                     return
+
     print(f"[VOD] File generato: {output_file} ({total_written} voci)")
 
 # ------------------------------
