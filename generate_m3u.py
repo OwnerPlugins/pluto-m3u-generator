@@ -18,6 +18,8 @@ PLUTO_API_URL = "https://api.pluto.tv"
 PLUTO_LIVE_URL = f"{PLUTO_API_URL}/v2/channels"
 PLUTO_VOD_URL = f"{PLUTO_API_URL}/v3/vod/categories"
 REGIONS_XML_URL = "https://raw.githubusercontent.com/oe-alliance/PlutoTV/refs/heads/main/src/PlutoTV/plutotv.xml"
+# REGIONS_XML_URL = "https://raw.githubusercontent.com/oe-alliance/PlutoTV/refs/heads/main/src/PlutoTV/plutotv.xml"
+
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
 REGIONS_TO_GENERATE = []
