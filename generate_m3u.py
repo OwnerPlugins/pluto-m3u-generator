@@ -12,13 +12,10 @@ from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 
 # ------------------------------
-# Costanti
-# ------------------------------
 PLUTO_API_URL = "https://api.pluto.tv"
 PLUTO_LIVE_URL = f"{PLUTO_API_URL}/v2/channels"
 PLUTO_VOD_URL = f"{PLUTO_API_URL}/v3/vod/categories"
 REGIONS_XML_URL = "https://raw.githubusercontent.com/oe-alliance/PlutoTV/refs/heads/main/src/PlutoTV/plutotv.xml"
-# REGIONS_XML_URL = "https://raw.githubusercontent.com/oe-alliance/PlutoTV/refs/heads/main/src/PlutoTV/plutotv.xml"
 
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
@@ -99,7 +96,7 @@ class PlutoAuth:
     def build_stream_url(self, channel_id, ip_address=""):
         token = self.boot(ip_address).get("sessionToken", "")
         url = f"{self.STITCHER_BASE}/v2/stitch/hls/channel/{channel_id}/master.m3u8?jwt={token}&masterJWTPassthrough=true"
-        if ip_address and ip_address.startswith("5.133"):   # IP italiano
+        if ip_address and ip_address.startswith("5.133"):
             url += "&audioLanguage=it"
         return url
 
@@ -112,7 +109,6 @@ class PlutoAuth:
         stitcher_url = cache.get("stitcherUrl", self.STITCHER_BASE)
         stitcher_params = cache.get("stitcherParams", "")
 
-        # Estrai il path dall'URL originale (senza host e query)
         path = vod_url.split("?")[0]
         path = re.sub(r"^https?://[^/]+", "", path)
         if path.startswith("/stitch/"):
@@ -196,9 +192,6 @@ def fetch_live_channels_metadata(ip_address="", region_code=""):
         if region_code == "IT":
             params["language"] = "it"
 
-    # full_url = requests.Request('GET', url, headers=headers, params=params).prepare().url
-    # print(f"[DEBUG] Metadata URL: {full_url}")
-
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
         if resp.status_code == 429:
@@ -217,9 +210,6 @@ def fetch_live_channels_metadata(ip_address="", region_code=""):
 
 
 # ------------------------------
-# Metadati per VOD (senza token, con X-Forwarded-For)
-
-
 def fetch_vod_categories_metadata(ip_address="", region_code=""):
     url = PLUTO_VOD_URL
     headers = {
@@ -341,7 +331,6 @@ def generate_vod_m3u(vod_data, output_file, ip_address="", max_items=0, region_c
                     ip_address
                 )
 
-                # Debug per il primo VOD italiano
                 if region_code == "IT" and not first_printed:
                     print(f"[DEBUG] Analisi tracce audio per VOD: {name}")
                     print_audio_tracks(stream_url)
